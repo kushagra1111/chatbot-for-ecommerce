@@ -43,7 +43,29 @@ class ChatResponse(BaseModel):
 def get_ai_response(user_message: str) -> str:
     return f"AI response to: {user_message}"  # Return dummy response
 
-@app.post("/chat/", response_model=ChatResponse)
+@app.post("/ask")
+async def ask_agent(request: Request):  # Define POST endpoint
+    data = await request.json()  # Parse incoming JSON request
+    user_message = data.get("message")  # Extract user message
+
+    # Step 1: Send user message to LLM for processing
+    llm_response = openai.ChatCompletion.create(
+        model="llama2-70b-4096",  # Use Groq-supported model
+        messages=[{"role": "user", "content": user_message}]  # Pass user message
+    )  # Get LLM response
+
+    agent_reply = llm_response['choices'][0]['message']['content']  # Extract LLM reply
+
+    # Step 2: Query the database (example query)
+    with engine.connect() as conn:  # Connect to database
+        result = conn.execute(text("SELECT * FROM users LIMIT 1"))  # Example SQL query, table 'users'
+        db_data = [dict(row) for row in result]  # Convert result to list of dicts
+
+    # Step 3: Return combined response
+    return {
+        "agent_reply": agent_reply,  # LLM's response
+        "db_data": db_data  # Database query result
+    }
 def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     # Check if user exists
     user = db.query(User).filter(User.id == request.user_id).first()  # Query user
